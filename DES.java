@@ -1,3 +1,8 @@
+import java.util.Arrays;
+import java.util.Base64;
+
+
+
 public class DES {
 
     // Extracts the parity bits from 64 bit key. The resulting key is 56 bits, which is also permuted. Done BEFORE we begin the 1st round of encryption
@@ -173,6 +178,93 @@ public class DES {
         }
         block = DES.permuteFP((rightSubBlock << 32) | leftSubBlock); // Reverse LR -> RL and perform reverse permutation (with respect to initial one) of the 64 bit block 
         return block;
+    }
+
+
+    /**
+     * Encrypts a string of characters
+     * @param plaintext string to be encrypted
+     * @param key a key to be used to encrypt @param plaintext
+     * @return encrypted string
+     */
+    public static String encrypt(String plaintext, long key) {
+        byte[] bytesArray = plaintext.getBytes();
+        byte[] paddedArr = DES.addPadding(bytesArray);
+
+        // For each block of 64 bits...
+        for(int i = 7; i < paddedArr.length; i+=8) {
+            // Record 8 bytes and put them all in a single block
+            long block = 0;
+            for(int j = 7; j >= 0; j--) {
+                block = block | ((((long) paddedArr[i-j]) & 0xFF) << (j * 8));
+            }
+            long encryptedBlock = DES.encryptBlock(block, key); // Encrypt the block
+
+            // Once the block of 64 bits is encrypted, we put it back into an array
+            for(int j = 7; j >= 0; j--) {
+                paddedArr[i-j] = (byte) (encryptedBlock >>> j * 8); // We cut all the bits after the 8th bit
+            }
+        }
+        return Base64.getEncoder().encodeToString(paddedArr); // Encode a byte array using Base64 encoding scheme
+    }
+
+
+    /**
+     * Decrypts a string of characters
+     * @param ciphertext string to be decrypted
+     * @param key a key to be used to decrypt @param ciphertext
+     * @return decrypted string
+     */
+    public static String decrypt(String ciphertext, long key) {
+        byte[] bytesArray = Base64.getDecoder().decode(ciphertext);
+
+        // For each block of 64 bits...
+        for(int i = 7; i < bytesArray.length; i+=8) {
+            // Record 8 bytes and put them all in a single block 
+            long block = 0;
+            for(int j = 7; j >= 0; j--) {
+                block = block | ((((long) bytesArray[i-j]) & 0xFF) << (j * 8));
+            }
+            long decryptedBlock = DES.decryptBlock(block, key); // Decrypt the block
+
+            // Once the block of 64 bits is decrypted, we put it back into an array
+            for(int j = 7; j >= 0; j--) {
+                bytesArray[i-j] = (byte) (decryptedBlock >>> j * 8); // We cut all the bits after the 8th bit
+            }
+        }
+        byte[] noPaddingArray = DES.removePadding(bytesArray);
+        return new String(noPaddingArray);
+     }
+
+
+    /**
+     * Pads an array of bytes to ensure that its length is a multiple of 8. Follows PKCS#5 padding scheme
+     * @param input an array of bytes to be padded
+     * @return a padded array of bytes
+     */
+    public static byte[] addPadding(byte[] input) {
+        int paddingLength = (8 - (input.length % 8)) == 0 ? 8 : ( 8 - (input.length % 8)); // If input.length is a multiple of 8, then we need to add a block of 8 bytes
+        byte[] paddedArr = new byte[input.length + paddingLength];
+
+        System.arraycopy(input, 0, paddedArr, 0, input.length); // Copy input arr into paddedArr
+
+        // Add the padding chars
+        for(int i = paddedArr.length - paddingLength; i < paddedArr.length; i++) {
+            paddedArr[i] = (byte) paddingLength; // It is safe because paddingLength <= 8 and so it is within the range byte data type
+        }
+        return paddedArr;
+    }
+
+
+    /**
+     * Removes the padding from an array of bytes. Follows PKCS#5 padding scheme
+     * @param input an array of bytes from which padding has to be removed
+     * @return an unpadded array of bytes
+     */
+    public static byte[] removePadding(byte[] input) {
+        int paddingLength = input[input.length-1];
+        byte[] noPaddingArray = Arrays.copyOf(input, input.length - paddingLength); // Remove padded chars
+        return noPaddingArray;
     }
 
 
